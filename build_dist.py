@@ -32,6 +32,14 @@ def minify_html_css(segment):
     return "\n".join(out)
 
 
+def minify_css(css):
+    """Whitespace-only, and only the kinds that can't change a rule: line breaks, and spaces around
+    { } ; , and after a colon. CSS strings here are simple ('' and 'number'), with no spaces to damage."""
+    css = re.sub(r"[ \t]*\n[ \t]*", "", css)
+    css = re.sub(r"\s*([{};,])\s*", r"\1", css)
+    return re.sub(r":\s+", ":", css)
+
+
 def minify_js(js):
     out = []
     # stack frames: ('code', interp, braces) | ('sq',) | ('dq',) | ('tpl',) | ('lc',) | ('bc',)
@@ -177,8 +185,41 @@ def minify_js(js):
     return result
 
 
+# The standard plugin and the SleepSense variant (a separate plugin that also logs nights from the
+# SleepSense Android app over MQTT) come from the same index.html: the variant keeps the blocks
+# between "@sleepsense-begin" and "@sleepsense-end" lines, the standard build drops them.
+VARIANTS = [
+    {"suffix": "", "sleepsense": False, "plugin_js": "plugin.js"},
+    {
+        "suffix": "-sleepsense",
+        "sleepsense": True,
+        "plugin_js": "plugin.sleepsense.js",
+        "id": "caffeine-tracker-sleepsense",
+        "name": "Caffeine Tracker + SleepSense",
+        "description": " Also logs each rated night from the SleepSense Android app, received over MQTT.",
+    },
+]
+
+
+def select_variant(html, sleepsense):
+    out, skipping = [], False
+    for line in html.split("\n"):
+        if "@sleepsense-begin" in line:
+            skipping = not sleepsense
+        elif "@sleepsense-end" in line:
+            skipping = False
+        elif not skipping:
+            out.append(line)
+    return "\n".join(out)
+
+
 def main():
-    html = open("index.html").read()
+    for variant in VARIANTS:
+        build(variant)
+
+
+def build(variant):
+    html = select_variant(open("index.html").read(), variant["sleepsense"])
     assert html.count("<style>") == 1 and html.count("<script>") == 1
     head, rest = html.split("<style>")
     css, rest = rest.split("</style>", 1)
@@ -188,7 +229,7 @@ def main():
     min_html = (
         minify_html_css(head)
         + "<style>"
-        + minify_html_css(css)
+        + minify_css(css)
         + "</style>"
         + minify_html_css(mid)
         + "<script>"
@@ -198,14 +239,16 @@ def main():
     )
     print(f"index.html {len(html)} -> {len(min_html)} bytes")
 
-    with open("manifest.json") as f:
-        version = json.load(f)["version"]
-    zip_path = f"dist/caffeine-tracker-v{version}.zip"
+    manifest = json.load(open("manifest.json"))
+    version = manifest["version"]
+    if "id" in variant:
+        manifest.update(id=variant["id"], name=variant["name"], description=manifest["description"] + "." + variant["description"])
+    zip_path = f"dist/caffeine-tracker{variant['suffix']}-v{version}.zip"
     payload = {
         "icon.svg": open("icon.svg").read(),
         "index.html": min_html,
-        "manifest.json": open("manifest.json").read(),
-        "plugin.js": open("plugin.js").read(),
+        "manifest.json": json.dumps(manifest, indent=2) + "\n",
+        "plugin.js": open(variant["plugin_js"]).read(),
         "README.md": open("README.md").read(),
     }
     for name in CAPPED_FILES:
