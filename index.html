@@ -1027,6 +1027,15 @@
           <button class="btn-primary" id="priorSleepAddBtn">Add</button>
         </div>
 
+        <!-- @sleepsense-begin -->
+        <div class="section-title">SleepSense MQTT</div>
+        <div class="card sleep-form">
+          <input type="text" id="mq" style="flex: 1; min-width: 0" placeholder="ws://user:pass@host:9001" aria-label="MQTT URL" />
+          <button class="btn-primary" id="mqs">Save</button>
+        </div>
+        <div id="mqm" style="font-size: 12px; padding: 4px 8px"></div>
+        <!-- @sleepsense-end -->
+
         <div class="section-title">Backup</div>
         <div class="card backup-card">
           <button class="btn-primary" id="backupBtn">Download backup</button>
@@ -1053,8 +1062,8 @@
   <script>
     const p = PluginAPI;
 
-    const CURRENT_VERSION = '1.54.1';
-    const REPO = 'BigWebstas/sp-caffiene-tracker';
+    const CURRENT_VERSION = '1.55.1';
+    const REPO = 'BigWebstas/sp-caffeine-tracker';
 
     function isNewerVersion(a, b) {
       const pa = a.split('.').map(Number);
@@ -3410,6 +3419,22 @@
 
     p.onReady(async () => {
       renderQuickAdd();
+      // @sleepsense-begin (the SleepSense variant only: plugin.sleepsense.js listens to the broker)
+      const mq = document.getElementById('mq');
+      p.loadSyncedData('sleepsense').then((j) => (mq.value = (j && JSON.parse(j).url) || ''));
+      document.getElementById('mqs').onclick = async () => {
+        const t = Date.now();
+        const note = document.getElementById('mqm');
+        note.textContent = 'Testing…';
+        await p.persistDataSynced(JSON.stringify({ url: mq.value.trim(), t }), 'sleepsense');
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          const s = JSON.parse((await p.loadSyncedData('sleepsense-status')) || '{}');
+          if (s.t === t) return (note.textContent = s.msg);
+        }
+        note.textContent = '❌ No answer from the plugin';
+      };
+      // @sleepsense-end
       await load();
       revealChart();
       updateClock();

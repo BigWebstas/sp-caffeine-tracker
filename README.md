@@ -6,8 +6,8 @@ caffeine level decay using a half-life model, and its effects on productivity th
 ## Screenshots
 
 <p>
-  <img src="Images/desktop2.png" alt="Desktop view: gauge and quick add" width="49%" />
-  <img src="Images/desktop1.png" alt="Desktop view: decay chart, log, and settings" width="49%" />
+  <img src="Images/desktop1.png" alt="Desktop view: gauge with Spent today and Daily avg, quick add, custom drink with cost, and sleep entry" width="100%" />
+  <img src="Images/desktop2.png" alt="Desktop view: decay curve with task and habit burndown, cost and sleep in the legend, and today's log with drink cost and pinned sleep row" width="100%" />
 </p>
 <p>
   <img src="Images/mobile.png" alt="Mobile view: gauge with Spent today and Daily avg, quick add, and custom drink entry with cost" width="31%" />
@@ -83,7 +83,7 @@ per-file limit on the uncompressed `index.html`: `python3 build_dist.py`
 - Caffeine entries and sleep log entries older than 400 days are pruned
   automatically on load.
 - **Network access:** the only outbound call this plugin makes is a single
-  read-only `GET` to `api.github.com/repos/BigWebstas/sp-caffiene-tracker/releases/latest`
+  read-only `GET` to `api.github.com/repos/BigWebstas/sp-caffeine-tracker/releases/latest`
   once per open, to check for a newer version. Nothing is sent besides the
   request itself — no telemetry, no data upload. This is what the `http`
   permission and `allowedHosts` entry in `manifest.json` are for.
@@ -99,3 +99,20 @@ per-file limit on the uncompressed `index.html`: `python3 build_dist.py`
   way to backfill days before that. Everything else (caffeine log, sleep log,
   tasks, estimate accuracy, hour-of-day, tag breakdown) uses real timestamps
   and isn't affected by this limitation.
+
+## SleepSense variant
+
+`python3 build_dist.py` builds two plugins that can be installed side by side:
+
+- `dist/caffeine-tracker-v<version>.zip`: the standard plugin.
+- `dist/caffeine-tracker-sleepsense-v<version>.zip`: "Caffeine Tracker + SleepSense", a separate plugin
+  (its own id) that also logs each rated night from the SleepSense Android app. Settings has a broker
+  WebSocket URL with the login in it (e.g. `ws://user:password@homeassistant.local:9001`; percent-encode
+  special characters). It listens to the retained `sleepsense/last_night` topic, even while the view is
+  closed, and logs the minutes asleep and stars into the Sleep log; a changed rating updates that night
+  instead of adding it again. The broker needs a WebSocket listener, and the URL syncs with your other
+  plugin data.
+
+The variant's extra code is the `@sleepsense-begin`/`@sleepsense-end` blocks in `index.html` and
+`plugin.sleepsense.js`; the standard build leaves them out. Install only one of the two, as both read and
+write the same sleep log if they share data.
