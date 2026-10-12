@@ -1053,7 +1053,7 @@
   <script>
     const p = PluginAPI;
 
-    const CURRENT_VERSION = '1.54.0';
+    const CURRENT_VERSION = '1.54.1';
     const REPO = 'BigWebstas/sp-caffiene-tracker';
 
     function isNewerVersion(a, b) {
@@ -2104,7 +2104,10 @@
 
       const now = Date.now();
       const todayStr = dateKeyLocal(now);
-      const todays = tasks.filter((t) => isTaskForToday(t, todayStr));
+      // SP clears dueDay on archive, so archived tasks only count via their completion day.
+      const todays = tasks
+        .filter((t) => isTaskForToday(t, todayStr))
+        .concat(archived.filter((t) => t.isDone && t.doneOn && dateKeyLocal(t.doneOn) === todayStr));
       const todayCompletions = todays
         .filter((t) => t.isDone)
         .map((t) => ({ time: t.doneOn || now }))
