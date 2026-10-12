@@ -83,7 +83,7 @@ per-file limit on the uncompressed `index.html`: `python3 build_dist.py`
 - Caffeine entries and sleep log entries older than 400 days are pruned
   automatically on load.
 - **Network access:** the only outbound call this plugin makes is a single
-  read-only `GET` to `api.github.com/repos/BigWebstas/sp-caffiene-tracker/releases/latest`
+  read-only `GET` to `api.github.com/repos/BigWebstas/sp-caffeine-tracker/releases/latest`
   once per open, to check for a newer version. Nothing is sent besides the
   request itself — no telemetry, no data upload. This is what the `http`
   permission and `allowedHosts` entry in `manifest.json` are for.
