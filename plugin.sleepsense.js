@@ -68,9 +68,18 @@
     }
   }
 
-  function connect(cfg) {
+  // After a settings change the first outcome is written to the 'sleepsense-status' part, tagged with
+  // the saved settings' `t`, for the view's Settings to show.
+  function connect(cfg, test) {
     disconnect();
-    if (!cfg.url) return;
+    let timeout = null;
+    const report = (ok, msg) => {
+      if (!test) return;
+      test = false;
+      clearTimeout(timeout);
+      p.persistDataSynced(JSON.stringify({ t: cfg.t, msg: `${ok ? '✅' : '❌'} ${msg}` }), 'sleepsense-status');
+    };
+    if (!cfg.url) return report(true, 'No broker set');
     let ws;
     let user = '';
     let pass = '';
@@ -81,9 +90,9 @@
       u.username = u.password = '';
       ws = new WebSocket(u.href, 'mqtt');
     } catch (e) {
-      p.showSnack?.({ msg: `SleepSense: bad broker URL (${e.message})`, type: 'ERROR' });
-      return;
+      return report(false, `Bad URL (${e.message})`);
     }
+    timeout = setTimeout(() => report(false, 'No answer from the broker (is the WebSocket listener on, and is it ws:// or wss://?)'), 6000);
     ws.binaryType = 'arraybuffer';
     socket = ws;
     let buf = [];
@@ -114,11 +123,12 @@
         buf = buf.slice(i + len);
         if (type === 2) {
           if (body[1] !== 0) {
-            p.showSnack?.({ msg: `SleepSense: broker refused the connection (code ${body[1]})`, type: 'ERROR' });
+            report(false, body[1] === 4 || body[1] === 5 ? 'Broker refused the user or password' : `Broker refused the connection (code ${body[1]})`);
             ws.onclose = null;
             ws.close();
             return;
           }
+          report(true, 'Connected');
           ws.send(packet(0x82, [0, 1, ...str(TOPIC), 0]));
           ping = setInterval(() => ws.send(new Uint8Array([0xc0, 0])), 30000);
         } else if (type === 3) {
@@ -134,17 +144,19 @@
       }
     };
     ws.onclose = () => {
+      report(false, 'Could not reach the broker (check the address, port and ws:// or wss://)');
       clearInterval(ping);
-      retry = setTimeout(() => connect(cfg), 15000);
+      retry = setTimeout(() => connect(cfg, false), 15000);
     };
   }
 
   async function applySettings() {
     const json = (await p.loadSyncedData('sleepsense')) || '{}';
     if (json === cfgJson) return;
+    const test = cfgJson !== null; // not the first read at startup
     cfgJson = json;
     try {
-      connect(JSON.parse(json));
+      connect(JSON.parse(json), test);
     } catch (e) {
       console.error('[Caffeine Tracker] bad SleepSense settings', e);
     }
