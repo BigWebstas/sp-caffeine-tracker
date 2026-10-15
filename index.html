@@ -28,7 +28,6 @@
   .header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     margin-bottom: var(--s3);
   }
 
@@ -359,6 +358,10 @@
     color: #fff;
   }
 
+  #priorDrinkSelect {
+    flex-basis: 100%;
+  }
+
   .prior-sleep-form .star-rating {
     flex-basis: 100%;
   }
@@ -529,22 +532,23 @@
   }
 
   .settings {
-    display: flex;
-    gap: var(--s2);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--s);
     padding: var(--s2);
-    flex-wrap: wrap;
   }
 
   .settings label {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     gap: 2px;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-color-muted);
   }
 
   .settings input {
-    width: 80px;
+    width: 100%;
   }
 
   .drink-row,
@@ -1006,9 +1010,9 @@
 
         <div class="section-title">Log drink for previous day</div>
         <div class="card sleep-form prior-sleep-form">
+          <select id="priorDrinkSelect" aria-label="Drink"></select>
           <input type="text" class="cal-input" id="priorDrinkDateInput" readonly aria-label="Drink date" title="Drink date" />
           <input type="time" id="priorDrinkTimeInput" value="08:00" aria-label="Time" />
-          <select id="priorDrinkSelect" aria-label="Drink"></select>
           <button class="btn-primary" id="priorDrinkAddBtn">Add</button>
         </div>
 
@@ -1040,7 +1044,7 @@
         <div class="card backup-card">
           <button class="btn-primary" id="backupBtn">Download backup</button>
           <button id="restoreBtn">Restore from file</button>
-          <input type="file" id="restoreInput" accept=".json,application/json" hidden />
+          <input type="file" id="restoreInput" hidden />
         </div>
       </div>
     </div>
@@ -1062,7 +1066,7 @@
   <script>
     const p = PluginAPI;
 
-    const CURRENT_VERSION = '1.55.1';
+    const CURRENT_VERSION = '1.55.5';
     const REPO = 'BigWebstas/sp-caffeine-tracker';
 
     function isNewerVersion(a, b) {
@@ -2113,7 +2117,6 @@
 
       const now = Date.now();
       const todayStr = dateKeyLocal(now);
-      // SP clears dueDay on archive, so archived tasks only count via their completion day.
       const todays = tasks
         .filter((t) => isTaskForToday(t, todayStr))
         .concat(archived.filter((t) => t.isDone && t.doneOn && dateKeyLocal(t.doneOn) === todayStr));
@@ -2141,7 +2144,6 @@
           estimateSamples.push({ time: t.doneOn, estimate: t.timeEstimate, spent: t.timeSpent });
         }
 
-        // SP clears dueDay/dueWithTime on archive, so fall back to the completion day.
         const dueDayKey =
           t.dueDay ||
           (t.dueWithTime ? dateKeyLocal(t.dueWithTime) : null) ||
@@ -3170,6 +3172,18 @@
       const win = getHostWindow();
       const blob = new win.Blob([content], { type });
 
+      const { Filesystem, Share } = win.Capacitor?.Plugins || {};
+      if (win.Capacitor?.isNativePlatform?.() && Filesystem && Share) {
+        try {
+          const { uri } = await Filesystem.writeFile({ path: filename, data: content, directory: 'CACHE', encoding: 'utf8', recursive: true });
+          await Share.share({ title, files: [uri] });
+          return;
+        } catch (e) {
+          if (!/cancel/i.test(String(e?.message || e))) p.showSnack?.({ msg: 'Could not save file', type: 'ERROR' });
+          return;
+        }
+      }
+
       if (win.navigator.canShare) {
         const file = new win.File([blob], filename, { type });
         if (win.navigator.canShare({ files: [file] })) {
@@ -3213,10 +3227,10 @@
       );
     }
 
-    async function restoreBackup(file) {
+    async function restoreBackup(text) {
       let data;
       try {
-        data = JSON.parse(await file.text());
+        data = JSON.parse(text);
       } catch (e) {
         data = null;
       }
@@ -3252,6 +3266,7 @@
     }
 
     function renderAll() {
+      document.documentElement.style.colorScheme = toRgba(themeColor('--text-color')).match(/\d+/)[0] > 128 ? 'dark' : 'light';
       renderLevel();
       renderGauge();
       renderHistory();
@@ -3398,10 +3413,12 @@
     document.getElementById('backupBtn').addEventListener('click', downloadBackup);
     const restoreInput = document.getElementById('restoreInput');
     document.getElementById('restoreBtn').addEventListener('click', () => restoreInput.click());
-    restoreInput.addEventListener('change', () => {
+    restoreInput.addEventListener('change', async () => {
       const file = restoreInput.files[0];
+      if (!file) return;
+      const text = await file.text().catch(() => null);
       restoreInput.value = '';
-      if (file) restoreBackup(file);
+      restoreBackup(text);
     });
 
     window.addEventListener('resize', () => {
@@ -3419,7 +3436,7 @@
 
     p.onReady(async () => {
       renderQuickAdd();
-      // @sleepsense-begin (the SleepSense variant only: plugin.sleepsense.js listens to the broker)
+      // @sleepsense-begin
       const mq = document.getElementById('mq');
       p.loadSyncedData('sleepsense').then((j) => (mq.value = (j && JSON.parse(j).url) || ''));
       document.getElementById('mqs').onclick = async () => {
