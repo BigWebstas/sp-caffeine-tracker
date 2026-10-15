@@ -1040,7 +1040,7 @@
         <div class="card backup-card">
           <button class="btn-primary" id="backupBtn">Download backup</button>
           <button id="restoreBtn">Restore from file</button>
-          <input type="file" id="restoreInput" accept=".json,application/json" hidden />
+          <input type="file" id="restoreInput" hidden />
         </div>
       </div>
     </div>
@@ -1062,7 +1062,7 @@
   <script>
     const p = PluginAPI;
 
-    const CURRENT_VERSION = '1.55.1';
+    const CURRENT_VERSION = '1.55.2';
     const REPO = 'BigWebstas/sp-caffeine-tracker';
 
     function isNewerVersion(a, b) {
@@ -3170,6 +3170,18 @@
       const win = getHostWindow();
       const blob = new win.Blob([content], { type });
 
+      const { Filesystem, Share } = win.Capacitor?.Plugins || {};
+      if (win.Capacitor?.isNativePlatform?.() && Filesystem && Share) {
+        try {
+          const { uri } = await Filesystem.writeFile({ path: filename, data: content, directory: 'CACHE', encoding: 'utf8', recursive: true });
+          await Share.share({ title, files: [uri] });
+          return;
+        } catch (e) {
+          if (!/cancel/i.test(String(e?.message || e))) p.showSnack?.({ msg: 'Could not save file', type: 'ERROR' });
+          return;
+        }
+      }
+
       if (win.navigator.canShare) {
         const file = new win.File([blob], filename, { type });
         if (win.navigator.canShare({ files: [file] })) {
@@ -3213,10 +3225,10 @@
       );
     }
 
-    async function restoreBackup(file) {
+    async function restoreBackup(text) {
       let data;
       try {
-        data = JSON.parse(await file.text());
+        data = JSON.parse(text);
       } catch (e) {
         data = null;
       }
@@ -3398,10 +3410,12 @@
     document.getElementById('backupBtn').addEventListener('click', downloadBackup);
     const restoreInput = document.getElementById('restoreInput');
     document.getElementById('restoreBtn').addEventListener('click', () => restoreInput.click());
-    restoreInput.addEventListener('change', () => {
+    restoreInput.addEventListener('change', async () => {
       const file = restoreInput.files[0];
+      if (!file) return;
+      const text = await file.text().catch(() => null);
       restoreInput.value = '';
-      if (file) restoreBackup(file);
+      restoreBackup(text);
     });
 
     window.addEventListener('resize', () => {
