@@ -1075,7 +1075,7 @@
   <script>
     const p = PluginAPI;
 
-    const CURRENT_VERSION = '1.55.7';
+    const CURRENT_VERSION = '1.56.0';
     const REPO = 'BigWebstas/sp-caffeine-tracker';
 
     function isNewerVersion(a, b) {
@@ -1101,7 +1101,7 @@
           btn.dataset.url = release.html_url || `https://github.com/${REPO}/releases/latest`;
         }
       } catch (e) {
-        console.error('[Caffeine Tracker] update check failed', e);
+        logErr('update check failed', e);
       }
     }
 
@@ -1113,6 +1113,8 @@
       { id: 'soda', label: 'Soda', emoji: '🥤', mg: 34, drinkTimeMin: 15 },
       { id: 'preworkout', label: 'Pre-Workout', emoji: '💊', mg: 200, drinkTimeMin: 5 },
     ];
+
+    const logErr = (m, ...a) => console.error('[Caffeine Tracker]', m, ...a);
 
     function newId() {
       return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1269,7 +1271,7 @@
       try {
         getHostWindow().open(url, '_blank');
       } catch (e) {
-        console.error('[Caffeine Tracker] failed to open release page', e);
+        logErr('open release page', e);
       }
       p.showSnack?.({ msg: `Update available: v${version}`, type: 'SUCCESS' });
     });
@@ -1424,7 +1426,7 @@
           if (partRaw) state = { ...state, ...JSON.parse(partRaw) };
         }
       } catch (e) {
-        console.error('[Caffeine Tracker] failed to load data', e);
+        logErr('load data', e);
       }
       if (prevHabitMarks && state.habitMarks && prevHabitMarks.day === state.habitMarks.day) {
         state.habitMarks = { ...state.habitMarks, marks: mergeMarksMin(state.habitMarks.marks, prevHabitMarks.marks) };
@@ -1473,7 +1475,13 @@
       document.body.classList.remove('is-loading');
     }
 
-    const SYNC_PARTS = { drinks: ['drinks'], habits: ['habitMarks', 'habitDayHistory'] };
+    const SYNC_PARTS = {
+      drinks: ['drinks'],
+      habits: ['habitMarks', 'habitDayHistory'],
+      entries: ['entries'],
+      sleep: ['sleepEntries'],
+      settings: ['halfLifeHours', 'threshold', 'dailyBreakdownDays', 'chartHoursBefore', 'chartHoursAfter'],
+    };
 
     function syncPartJson(src, part) {
       return JSON.stringify(Object.fromEntries(SYNC_PARTS[part].map((f) => [f, src[f]])));
@@ -1482,10 +1490,10 @@
     async function save(part) {
       if (!hasLoadedOnce) return;
       try {
-        if (part) await p.persistDataSynced(syncPartJson(state, part), part);
+        await p.persistDataSynced(syncPartJson(state, part), part);
         if (part !== 'habits') await p.persistDataSynced(JSON.stringify(state));
       } catch (e) {
-        console.error('[Caffeine Tracker] failed to save data', e);
+        logErr('save data', e);
       }
     }
 
@@ -1512,7 +1520,7 @@
         const val = parseFloat(ev.target.value);
         if (val >= min && val <= max) {
           state[stateField] = val;
-          save();
+          save('settings');
           renderAll();
           flashDataCards();
         }
@@ -1550,7 +1558,7 @@
         time: now,
         rampStart,
       });
-      save();
+      save('entries');
       renderAll();
       flashDataCards();
       p.showSnack?.({ msg: `Logged ${label} (${mg} mg)`, type: 'SUCCESS' });
@@ -1558,7 +1566,7 @@
 
     function deleteEntry(id) {
       state.entries = state.entries.filter((e) => e.id !== id);
-      save();
+      save('entries');
       renderAll();
       flashDataCards();
     }
@@ -1596,7 +1604,7 @@
       }
       const cutoff = now - 400 * 24 * 3600000;
       state.sleepEntries = state.sleepEntries.filter((e) => e.time >= cutoff);
-      save();
+      save('sleep');
       renderSleepHistory();
       renderDailyBreakdown();
       renderHistory();
@@ -1605,7 +1613,7 @@
 
     function deleteSleepEntry(id) {
       state.sleepEntries = state.sleepEntries.filter((e) => e.id !== id);
-      save();
+      save('sleep');
       renderSleepHistory();
       renderDailyBreakdown();
       renderHistory();
@@ -2112,7 +2120,7 @@
       ]);
 
       if (tasksResult.status === 'rejected' || archivedResult.status === 'rejected') {
-        console.error('[Caffeine Tracker] failed to load tasks', tasksResult.reason || archivedResult.reason);
+        logErr('load tasks', tasksResult.reason || archivedResult.reason);
         return;
       }
       const tasks = tasksResult.value;
@@ -2121,7 +2129,7 @@
       if (tagsResult.status === 'fulfilled' && tagsResult.value) {
         tagsById = new Map(tagsResult.value.map((t) => [t.id, t.title]));
       } else if (tagsResult.status === 'rejected') {
-        console.error('[Caffeine Tracker] failed to load tags', tagsResult.reason);
+        logErr('load tags', tagsResult.reason);
       }
 
       const now = Date.now();
@@ -2183,7 +2191,7 @@
       try {
         counts = await p.getAllCounters();
       } catch (e) {
-        console.error('[Caffeine Tracker] failed to load habits', e);
+        logErr('load habits', e);
         return;
       }
 
@@ -3255,7 +3263,7 @@
         for (const part in SYNC_PARTS) await p.persistDataSynced(syncPartJson(data, part), part);
         await p.persistDataSynced(JSON.stringify(data));
       } catch (e) {
-        console.error('[Caffeine Tracker] failed to restore backup', e);
+        logErr('restore backup', e);
         p.showSnack?.({ msg: 'Restore failed', type: 'ERROR' });
         return;
       }
@@ -3375,7 +3383,7 @@
       const val = parseInt(ev.target.value, 10);
       if (val >= 1 && val <= 30) {
         state.dailyBreakdownDays = val;
-        save();
+        save('settings');
       }
     });
 
