@@ -21,7 +21,7 @@
   // same night is updated in place instead of adding its minutes twice.
   async function importNight(n) {
     if (!n || !isNum(n.start) || !isNum(n.end) || !isNum(n.minutes) || !(n.rating >= 1 && n.rating <= 5)) return;
-    const state = JSON.parse((await p.loadSyncedData()) || '{}');
+    const state = JSON.parse((await p.loadSyncedData('sleep')) || (await p.loadSyncedData()) || '{}');
     const entries = state.sleepEntries || [];
     const key = dayKey(n.end);
     const existing = entries.find((e) => e.dayKey === key);
@@ -37,8 +37,7 @@
       entries.push({ id, dayKey: key, time: n.end, durationMin: n.minutes, rating: n.rating, night: n.start, nightMin: n.minutes });
       p.showSnack?.({ msg: `Logged last night's sleep (${Math.floor(n.minutes / 60)}h ${n.minutes % 60}m)`, type: 'SUCCESS' });
     }
-    state.sleepEntries = entries;
-    await p.persistDataSynced(JSON.stringify(state)); // the open view reloads on this
+    await p.persistDataSynced(JSON.stringify({ sleepEntries: entries }), 'sleep'); // the open view reloads on this
   }
 
   // Just enough MQTT 3.1.1 to connect and listen to one topic
