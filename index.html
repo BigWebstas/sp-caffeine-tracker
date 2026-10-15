@@ -33,6 +33,7 @@
 
   .header-actions {
     display: flex;
+    margin-left: auto;
     gap: var(--s);
   }
 
@@ -360,6 +361,14 @@
 
   #priorDrinkSelect {
     flex-basis: 100%;
+  }
+
+  #priorDrinkTimeInput {
+    flex-basis: 125px;
+  }
+
+  input::-webkit-calendar-picker-indicator {
+    filter: invert(var(--is-dark-theme));
   }
 
   .prior-sleep-form .star-rating {
@@ -792,7 +801,7 @@
   <div class="header-row">
     <h1>☕ Caffeine Tracker</h1>
     <div class="header-actions">
-      <button type="button" class="icon-btn update-btn hidden" id="updateBtn" title="A newer version is available" aria-label="Update available">🔔 Update</button>
+      <button type="button" class="icon-btn update-btn hidden" id="updateBtn" title="Update available" aria-label="Update available">🔔 Update</button>
       <button type="button" class="icon-btn" id="reportsBtn" title="Reports" aria-label="Reports">📊 Reports</button>
       <button type="button" class="icon-btn" id="settingsBtn" title="Settings &amp; drinks" aria-label="Settings">⚙️ Settings</button>
     </div>
@@ -1066,7 +1075,7 @@
   <script>
     const p = PluginAPI;
 
-    const CURRENT_VERSION = '1.55.5';
+    const CURRENT_VERSION = '1.55.7';
     const REPO = 'BigWebstas/sp-caffeine-tracker';
 
     function isNewerVersion(a, b) {
@@ -3266,7 +3275,6 @@
     }
 
     function renderAll() {
-      document.documentElement.style.colorScheme = toRgba(themeColor('--text-color')).match(/\d+/)[0] > 128 ? 'dark' : 'light';
       renderLevel();
       renderGauge();
       renderHistory();
