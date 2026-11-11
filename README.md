@@ -65,9 +65,23 @@ caffeine level decay using a half-life model, and its effects on productivity th
 
 ## Install
 
-1. Grab a release zip
-2. In Super Productivity: **Settings → Plugins → Upload Plugin**
-3. Open it from the ☕ header button
+**From the app (recommended):** in Super Productivity open **Settings → Plugins**, find
+**Caffeine Tracker** in the community plugin list and click Install. When a new release is
+published, the same list offers an Update button.
+
+**Manually:** grab a release zip, then **Settings → Plugins → Upload Plugin**.
+
+Either way, open it from the ☕ header button.
+
+## Releasing
+
+1. Bump the version in `manifest.json` and `CURRENT_VERSION` in `index.html`, then `python3 build_dist.py`.
+2. Create a GitHub release tagged with the bare version (e.g. `1.57.0`, no `v`) and upload
+   `dist/caffeine-tracker-v<version>.zip` — the exact file the build wrote, since the zip is
+   byte-reproducible and Super Productivity checks its sha256.
+3. Copy the `community-plugins.json entry` the build prints (its `release` block) into
+   `src/assets/community-plugins.json` in `super-productivity/super-productivity` via PR. That
+   `release` block is what enables in-app install and update.
 
 ## Build
 

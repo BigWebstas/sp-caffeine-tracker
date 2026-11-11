@@ -14,12 +14,14 @@ and comments (tracked with a small tokenizer), so semantics can't change:
 
 Usage: python3 build_dist.py
 """
+import hashlib
 import json
 import re
 import zipfile
 
 SRC_FILES = ["icon.svg", "index.html", "manifest.json", "plugin.js", "README.md"]
 SIZE_CEILING = 100 * 1024
+REPO = "BigWebstas/sp-caffeine-tracker"
 CAPPED_FILES = ["icon.svg", "index.html", "manifest.json"]
 
 
@@ -257,8 +259,40 @@ def build(variant):
         assert size <= SIZE_CEILING, f"{name} is over the size ceiling!"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for name, data in payload.items():
-            z.writestr(name, data)
+            # Fixed timestamp and mode so the sha256 is reproducible: it must match the zip uploaded
+            # to the GitHub release, which is what Super Productivity verifies on install/update.
+            info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            z.writestr(info, data)
     print(f"wrote {zip_path}")
+    if not variant["suffix"]:
+        print_community_entry(manifest, version, zip_path)
+
+
+def print_community_entry(manifest, version, zip_path):
+    """Print the entry for super-productivity's src/assets/community-plugins.json.
+
+    The `release` block is what lets Super Productivity's Settings -> Plugins list install and update
+    this plugin in-app: it downloads downloadUrl and checks it against sha256. Upload exactly the zip
+    just written to the GitHub release tagged <version> (no "v" prefix), or the hash check fails.
+    """
+    sha = hashlib.sha256(open(zip_path, "rb").read()).hexdigest()
+    entry = {
+        "name": manifest["name"],
+        "shortDescription": "Track caffeine intake and correlate it with task completions, focus, and habits in Super Productivity.",
+        "url": f"https://github.com/{REPO}",
+        "author": "BigWebstas",
+        "authorUrl": "https://github.com/BigWebstas",
+        "id": manifest["id"],
+        "release": {
+            "version": version,
+            "downloadUrl": f"https://github.com/{REPO}/releases/download/{version}/{zip_path.split('/')[-1]}",
+            "sha256": sha,
+        },
+    }
+    print("\ncommunity-plugins.json entry:")
+    print(json.dumps(entry, indent=2))
 
 
 if __name__ == "__main__":
